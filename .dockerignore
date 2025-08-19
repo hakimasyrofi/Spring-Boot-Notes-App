@@ -1,0 +1,35 @@
+# Docker ignore file for Spring Boot application
+# Ignore target directory (build artifacts)
+target/
+!target/*.jar
+
+# Ignore IDE files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore git
+.git
+.gitignore
+
+# Ignore Docker files themselves
+Dockerfile*
+docker-compose*
+
+# Ignore logs
+*.log
+logs/
+
+# Ignore temporary files
+*.tmp
+*.temp
+~*
+
+# Ignore Maven wrapper jar (we copy it explicitly)
+.mvn/wrapper/maven-wrapper.jar

@@ -1,0 +1,100 @@
+version: "3.8"
+
+services:
+  # Spring Boot Application
+  notes-api:
+    build:
+      context: .
+      dockerfile: ${DOCKERFILE:-Dockerfile}
+    container_name: ${CONTAINER_PREFIX:-notes}-api
+    ports:
+      - "${API_PORT:-8080}:8080"
+    env_file:
+      - .env
+    environment:
+      # Override DB_HOST for Docker internal network
+      - DB_HOST=${DB_HOST:-postgres}
+      # Override REDIS_HOST for Docker internal network
+      - REDIS_HOST=${REDIS_HOST:-redis}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - notes-network
+    restart: ${RESTART_POLICY:-unless-stopped}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: ${HEALTH_START_PERIOD:-45s}
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:${POSTGRES_VERSION:-15}-alpine
+    container_name: ${CONTAINER_PREFIX:-notes}-postgres
+    ports:
+      - "${DB_EXTERNAL_PORT:-5432}:5432"
+    env_file:
+      - .env
+    environment:
+      # Map our env vars to PostgreSQL expected names
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USERNAME}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - notes-network
+    restart: ${RESTART_POLICY:-unless-stopped}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_NAME}"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Adminer (Database Management Tool) - Optional
+  adminer:
+    image: adminer:${ADMINER_VERSION:-latest}
+    container_name: ${CONTAINER_PREFIX:-notes}-adminer
+    ports:
+      - "${ADMINER_PORT:-8081}:8080"
+    networks:
+      - notes-network
+    restart: ${RESTART_POLICY:-unless-stopped}
+    profiles:
+      - adminer
+
+  # Redis (for caching/sessions)
+  redis:
+    image: redis:${REDIS_VERSION:-7}-alpine
+    container_name: ${CONTAINER_PREFIX:-notes}-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - notes-network
+    restart: ${RESTART_POLICY:-unless-stopped}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:
+    name: ${CONTAINER_PREFIX:-notes}_postgres_data
+  redis_data:
+    name: ${CONTAINER_PREFIX:-notes}_redis_data
+
+networks:
+  notes-network:
+    name: ${CONTAINER_PREFIX:-notes}_network
+    driver: bridge
